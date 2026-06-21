@@ -10,11 +10,11 @@ import { resolveBranch } from "@/utils/routeEngine";
 import dayjs from "dayjs";
 
 export default function FireSafetyForm() {
-  const { id } = useParams<{ id: string }>();
+  const { exhibitionId } = useParams<{ exhibitionId: string }>();
   const navigate = useNavigate();
   const { exhibitions, halls, approvalRoutes, addApprovalRequest, updateExhibition } = useStore();
 
-  const exhibition = exhibitions.find((e) => e.id === id);
+  const exhibition = exhibitions.find((e) => e.id === exhibitionId);
   const hallNames = exhibition
     ? exhibition.hallIds.map((hid) => halls.find((h) => h.id === hid)?.name).filter(Boolean).join("、")
     : "";
@@ -59,11 +59,11 @@ export default function FireSafetyForm() {
       branchId: branch.id,
       currentNodeIndex: 0,
       status: "pending",
-      nodes: branch.nodes.map((n) => ({
+      nodes: branch.nodes.map((n, i) => ({
         nodeId: n.id,
         title: n.title,
         role: n.role,
-        status: "pending" as const,
+        status: i === 0 ? "current" as const : "pending" as const,
       })),
       formData: { extinguisherCount: extCount, hydrantCount: hydCount },
       createdAt: today,

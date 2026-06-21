@@ -1,6 +1,28 @@
 import dayjs from "dayjs";
 import type { CycleRule, Occupancy } from "@/types";
 
+function dateRangesOverlap(
+  startA: string,
+  endA: string,
+  startB: string,
+  endB: string
+): boolean {
+  const aStart = dayjs(startA);
+  const aEnd = dayjs(endA);
+  const bStart = dayjs(startB);
+  const bEnd = dayjs(endB);
+  return !(aEnd.isBefore(bStart, "day") || aStart.isAfter(bEnd, "day"));
+}
+
+function timeOverlaps(
+  startA: string,
+  endA: string,
+  startB: string,
+  endB: string
+): boolean {
+  return !(endA <= startB || startA >= endB);
+}
+
 export function generateOccupanciesFromRule(
   rule: CycleRule,
   existingOccupancies: Occupancy[],
@@ -24,30 +46,33 @@ export function generateOccupanciesFromRule(
 
     if (shouldInclude && rule.weekDays.includes(current.day())) {
       for (const slot of rule.timeSlots) {
-        const occupancy: Occupancy = {
-          id: `gen-${rule.id}-${current.format("YYYYMMDD")}-${slot.start}`,
-          hallId: rule.hallIds[0],
-          title: rule.title,
-          type: rule.type,
-          startDate: current.format("YYYY-MM-DD"),
-          endDate: current.format("YYYY-MM-DD"),
-          startTime: slot.start,
-          endTime: slot.end,
-          cycleRuleId: rule.id,
-          isAdjusted: false,
-        };
+        for (const hallId of rule.hallIds) {
+          const occDate = current.format("YYYY-MM-DD");
+          const occupancy: Occupancy = {
+            id: `gen-${rule.id}-${hallId}-${current.format("YYYYMMDD")}-${slot.start}`,
+            hallId,
+            title: rule.title,
+            type: rule.type,
+            startDate: occDate,
+            endDate: occDate,
+            startTime: slot.start,
+            endTime: slot.end,
+            cycleRuleId: rule.id,
+            isAdjusted: false,
+          };
 
-        const conflict = existingOccupancies.find(
-          (o) =>
-            o.hallId === occupancy.hallId &&
-            o.startDate === occupancy.startDate &&
-            !(o.endTime <= occupancy.startTime || o.startTime >= occupancy.endTime)
-        );
+          const conflict = existingOccupancies.find(
+            (o) =>
+              o.hallId === occupancy.hallId &&
+              dateRangesOverlap(o.startDate, o.endDate, occupancy.startDate, occupancy.endDate) &&
+              timeOverlaps(o.startTime, o.endTime, occupancy.startTime, occupancy.endTime)
+          );
 
-        if (conflict) {
-          conflicts.push(occupancy);
-        } else {
-          occupancies.push(occupancy);
+          if (conflict) {
+            conflicts.push(occupancy);
+          } else {
+            occupancies.push(occupancy);
+          }
         }
       }
     }
@@ -61,6 +86,7 @@ export function generateOccupanciesFromRule(
 export function checkTimeConflict(
   hallId: string,
   startDate: string,
+  endDate: string,
   startTime: string,
   endTime: string,
   existingOccupancies: Occupancy[],
@@ -70,7 +96,7 @@ export function checkTimeConflict(
     (o) =>
       o.id !== excludeId &&
       o.hallId === hallId &&
-      o.startDate === startDate &&
-      !(o.endTime <= startTime || o.startTime >= endTime)
+      dateRangesOverlap(o.startDate, o.endDate, startDate, endDate) &&
+      timeOverlaps(o.startTime, o.endTime, startTime, endTime)
   );
 }

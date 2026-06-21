@@ -14,6 +14,7 @@ import ApprovalDetail from "@/pages/approvals/ApprovalDetail";
 import RoutingConfig from "@/pages/approvals/RoutingConfig";
 import ExhibitionList from "@/pages/exhibitions/ExhibitionList";
 import ExhibitionForm from "@/pages/exhibitions/ExhibitionForm";
+import ExhibitionDetail from "@/pages/exhibitions/ExhibitionDetail";
 import FireSafetyForm from "@/pages/exhibitions/FireSafetyForm";
 
 export default function App() {
@@ -36,7 +37,7 @@ export default function App() {
         <Route path="/routing/config" element={<RoutingConfig />} />
         <Route path="/exhibitions" element={<ExhibitionList />} />
         <Route path="/exhibitions/new" element={<ExhibitionForm />} />
-        <Route path="/exhibitions/:id" element={<ExhibitionForm />} />
+        <Route path="/exhibitions/:id" element={<ExhibitionDetail />} />
         <Route path="/fire-safety/:exhibitionId" element={<FireSafetyForm />} />
       </Routes>
       <TabBar />

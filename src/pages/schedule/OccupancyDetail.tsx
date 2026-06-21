@@ -18,6 +18,7 @@ export default function OccupancyDetail() {
 
   const [editing, setEditing] = useState(false);
   const [startDate, setStartDate] = useState(occupancy?.startDate || "");
+  const [endDate, setEndDate] = useState(occupancy?.endDate || "");
   const [startTime, setStartTime] = useState(occupancy?.startTime || "");
   const [endTime, setEndTime] = useState(occupancy?.endTime || "");
 
@@ -35,6 +36,7 @@ export default function OccupancyDetail() {
   const conflict = checkTimeConflict(
     occupancy.hallId,
     editing ? startDate : occupancy.startDate,
+    editing ? endDate : occupancy.endDate,
     editing ? startTime : occupancy.startTime,
     editing ? endTime : occupancy.endTime,
     occupancies,
@@ -45,6 +47,7 @@ export default function OccupancyDetail() {
     if (conflict) return;
     updateOccupancy(occupancy.id, {
       startDate,
+      endDate,
       startTime,
       endTime,
       isAdjusted: true,
