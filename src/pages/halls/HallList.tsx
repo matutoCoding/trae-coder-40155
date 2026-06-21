@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Plus, Building2, MapPin, Clock, Filter } from "lucide-react";
+import { Plus, Building2, MapPin, Clock, Filter, CalendarDays } from "lucide-react";
 import { useStore } from "@/stores/useStore";
 import { PageHeader, PageContainer } from "@/components/PageHeader";
 import { HALL_STATUS_LABELS } from "@/types";
@@ -35,7 +35,20 @@ export default function HallList() {
     <PageContainer>
       <PageHeader
         title="展厅管理"
-        right={<Filter size={18} className="text-slate-400" />}
+        right={
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => navigate("/schedule/monthly")}
+              className="w-8 h-8 flex items-center justify-center rounded-full active:bg-white/10"
+              title="月度总览"
+            >
+              <CalendarDays size={18} className="text-slate-400" />
+            </button>
+            <button className="w-8 h-8 flex items-center justify-center rounded-full active:bg-white/10">
+              <Filter size={18} className="text-slate-400" />
+            </button>
+          </div>
+        }
       />
 
       <div className="flex gap-2 py-3 overflow-x-auto">

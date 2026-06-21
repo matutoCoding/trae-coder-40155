@@ -5,6 +5,7 @@ import HallList from "@/pages/halls/HallList";
 import HallForm from "@/pages/halls/HallForm";
 import HallDetail from "@/pages/halls/HallDetail";
 import OccupancyDetail from "@/pages/schedule/OccupancyDetail";
+import MonthlySchedule from "@/pages/schedule/MonthlySchedule";
 import CycleList from "@/pages/cycles/CycleList";
 import CycleForm from "@/pages/cycles/CycleForm";
 import CyclePreview from "@/pages/cycles/CyclePreview";
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/halls/:id" element={<HallDetail />} />
         <Route path="/halls/:id/edit" element={<HallForm />} />
         <Route path="/occupancy/:id" element={<OccupancyDetail />} />
+        <Route path="/schedule/monthly" element={<MonthlySchedule />} />
         <Route path="/cycles" element={<CycleList />} />
         <Route path="/cycles/new" element={<CycleForm />} />
         <Route path="/cycles/:id/edit" element={<CycleForm />} />

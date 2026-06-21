@@ -11,16 +11,23 @@ import {
   Clock,
   XCircle,
   AlertCircle,
+  CalendarDays,
+  Clock as ClockIcon,
 } from "lucide-react";
 import { useStore } from "@/stores/useStore";
 import { PageHeader, PageContainer } from "@/components/PageHeader";
 import {
   EXHIBITION_STATUS_LABELS,
   APPROVAL_STATUS_LABELS,
+  OCCUPANCY_TYPE_LABELS,
+  OCCUPANCY_TYPE_COLORS,
 } from "@/types";
-import type { FireSafetyStatus, ExhibitionStatus } from "@/types";
+import type { FireSafetyStatus, ExhibitionStatus, Occupancy } from "@/types";
+import { checkTimeConflict } from "@/utils/dateUtils";
 import { cn } from "@/lib/utils";
 import dayjs from "dayjs";
+import { useState } from "react";
+import BottomSheet from "@/components/BottomSheet";
 
 const STATUS_COLORS: Record<ExhibitionStatus, string> = {
   preparing: "bg-blue-500/20 text-blue-300",
@@ -43,8 +50,21 @@ const FIRE_STATUS: Record<
 export default function ExhibitionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { exhibitions, halls, approvalRequests } = useStore();
+  const {
+    exhibitions,
+    halls,
+    approvalRequests,
+    occupancies,
+    updateOccupancy,
+  } = useStore();
   const exhibition = exhibitions.find((e) => e.id === id);
+
+  const [editingOcc, setEditingOcc] = useState<Occupancy | null>(null);
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editEndDate, setEditEndDate] = useState("");
+  const [editStartTime, setEditStartTime] = useState("");
+  const [editEndTime, setEditEndTime] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
 
   if (!exhibition) {
     return (
@@ -66,12 +86,59 @@ export default function ExhibitionDetail() {
     (a) => a.exhibitionId === exhibition.id
   );
 
+  const relatedOccupancies = occupancies.filter(
+    (o) => o.exhibitionId === exhibition.id
+  );
+
   const fireInfo = FIRE_STATUS[exhibition.fireSafetyStatus];
   const FireIcon = fireInfo.icon;
 
+  const hallMap = Object.fromEntries(halls.map((h) => [h.id, h.name]));
+
+  const handleEditOcc = (occ: Occupancy) => {
+    setEditingOcc(occ);
+    setEditStartDate(occ.startDate);
+    setEditEndDate(occ.endDate);
+    setEditStartTime(occ.startTime);
+    setEditEndTime(occ.endTime);
+    setEditError(null);
+  };
+
+  const handleSaveOcc = () => {
+    if (!editingOcc) return;
+    setEditError(null);
+
+    const conflict = checkTimeConflict(
+      editingOcc.hallId,
+      editStartDate,
+      editEndDate,
+      editStartTime,
+      editEndTime,
+      occupancies,
+      editingOcc.id
+    );
+
+    if (conflict) {
+      setEditError(
+        `与「${conflict.title}」(${conflict.startDate} ${conflict.startTime}-${conflict.endTime}) 存在时段重叠，无法保存`
+      );
+      return;
+    }
+
+    updateOccupancy(editingOcc.id, {
+      startDate: editStartDate,
+      endDate: editEndDate,
+      startTime: editStartTime,
+      endTime: editEndTime,
+      isAdjusted: true,
+    });
+    setEditingOcc(null);
+  };
+
   return (
-    <PageContainer>
-      <PageHeader title="展会详情" showBack />
+    <>
+      <PageContainer>
+        <PageHeader title="展会详情" showBack />
 
       <motion.div
         initial={{ opacity: 0, y: 16 }}
@@ -185,6 +252,85 @@ export default function ExhibitionDetail() {
           )}
         </div>
 
+        <div className="bg-surface rounded-xl p-4 space-y-3">
+          <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+            关联排期
+          </h3>
+          {relatedOccupancies.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-4">
+              暂无排期记录
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {relatedOccupancies.map((occ) => {
+                const hasConflict = checkTimeConflict(
+                  occ.hallId,
+                  occ.startDate,
+                  occ.endDate,
+                  occ.startTime,
+                  occ.endTime,
+                  occupancies,
+                  occ.id
+                );
+                return (
+                  <motion.div
+                    key={occ.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={cn(
+                      "bg-primary-dark rounded-lg p-3 cursor-pointer active:bg-surface-light transition-colors",
+                      hasConflict && "border border-danger/40"
+                    )}
+                    onClick={() => handleEditOcc(occ)}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "text-[10px] font-medium text-white px-1.5 py-0.5 rounded",
+                            OCCUPANCY_TYPE_COLORS[occ.type]
+                          )}
+                        >
+                          {OCCUPANCY_TYPE_LABELS[occ.type]}
+                        </span>
+                        {hasConflict && (
+                          <AlertCircle size={11} className="text-danger" />
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-500">
+                        {hallMap[occ.hallId] ?? occ.hallId}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-200 font-medium truncate">
+                      {occ.title}
+                    </p>
+                    <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <CalendarDays size={10} />
+                        {dayjs(occ.startDate).format("MM-DD")}
+                        {occ.endDate !== occ.startDate &&
+                          ` ~ ${dayjs(occ.endDate).format("MM-DD")}`}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <ClockIcon size={10} />
+                        {occ.startTime}-{occ.endTime}
+                      </span>
+                    </div>
+                    {hasConflict && (
+                      <p className="text-[10px] text-danger mt-1.5">
+                        ⚠ 与其他排期时段重叠
+                      </p>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+          <p className="text-[10px] text-slate-500 text-center">
+            点击可调整单条排期
+          </p>
+        </div>
+
         {exhibition.attachments.length > 0 && (
           <div className="bg-surface rounded-xl p-4 space-y-3">
             <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider">
@@ -243,5 +389,111 @@ export default function ExhibitionDetail() {
         )}
       </motion.div>
     </PageContainer>
+
+    <BottomSheet
+      open={editingOcc !== null}
+      onClose={() => setEditingOcc(null)}
+      title="调整排期"
+    >
+      {editingOcc && (
+        <div className="space-y-4">
+          <div className="bg-surface-light rounded-lg p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "text-[10px] font-medium text-white px-1.5 py-0.5 rounded",
+                  OCCUPANCY_TYPE_COLORS[editingOcc.type]
+                )}
+              >
+                {OCCUPANCY_TYPE_LABELS[editingOcc.type]}
+              </span>
+              <span className="text-sm text-slate-200 font-medium">
+                {editingOcc.title}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400">
+              展厅：{hallMap[editingOcc.hallId] ?? editingOcc.hallId}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-500 block mb-1.5">
+                开始日期
+              </label>
+              <input
+                type="date"
+                value={editStartDate}
+                onChange={(e) => setEditStartDate(e.target.value)}
+                className="w-full px-3 py-2 bg-surface-light border border-white/10 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-accent/40"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500 block mb-1.5">
+                结束日期
+              </label>
+              <input
+                type="date"
+                value={editEndDate}
+                onChange={(e) => setEditEndDate(e.target.value)}
+                className="w-full px-3 py-2 bg-surface-light border border-white/10 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-accent/40"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-500 block mb-1.5">
+                开始时间
+              </label>
+              <input
+                type="time"
+                value={editStartTime}
+                onChange={(e) => setEditStartTime(e.target.value)}
+                className="w-full px-3 py-2 bg-surface-light border border-white/10 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-accent/40"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500 block mb-1.5">
+                结束时间
+              </label>
+              <input
+                type="time"
+                value={editEndTime}
+                onChange={(e) => setEditEndTime(e.target.value)}
+                className="w-full px-3 py-2 bg-surface-light border border-white/10 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-accent/40"
+              />
+            </div>
+          </div>
+
+          {editError && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-danger/15 border border-danger/30 rounded-lg px-3 py-2 text-xs text-danger flex items-start gap-2"
+            >
+              <AlertCircle size={14} className="mt-0.5 shrink-0" />
+              <span>{editError}</span>
+            </motion.div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={() => setEditingOcc(null)}
+              className="flex-1 py-3 bg-surface-light text-slate-300 rounded-xl font-medium text-sm border border-white/10 active:bg-surface"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleSaveOcc}
+              className="flex-1 py-3 bg-accent text-primary-dark rounded-xl font-semibold text-sm active:bg-accent-light"
+            >
+              保存调整
+            </button>
+          </div>
+        </div>
+      )}
+    </BottomSheet>
+    </>
   );
 }

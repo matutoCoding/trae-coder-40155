@@ -1,10 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useStore } from "@/stores/useStore";
 import { PageHeader, PageContainer } from "@/components/PageHeader";
 import { OCCUPANCY_TYPE_LABELS, OCCUPANCY_TYPE_COLORS } from "@/types";
 import type { Occupancy } from "@/types";
 import { useNavigate, useParams } from "react-router-dom";
-import { AlertTriangle, Check, Calendar, Clock } from "lucide-react";
+import { AlertTriangle, Check, Calendar, Clock, Info } from "lucide-react";
 import { motion } from "framer-motion";
 import dayjs from "dayjs";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ export default function CyclePreview() {
   const hallMap = Object.fromEntries(halls.map((h) => [h.id, h.name]));
 
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   const { normal, conflicts } = useMemo(() => {
     if (!rule) return { normal: [], conflicts: [] };
@@ -26,10 +27,18 @@ export default function CyclePreview() {
     return { normal: result.occupancies, conflicts: result.conflicts };
   }, [rule, occupancies, halls]);
 
+  useEffect(() => {
+    setExcluded(new Set(conflicts.map((c) => c.id)));
+  }, [conflicts]);
+
   const all = [...normal, ...conflicts];
   const total = all.length;
   const conflictCount = conflicts.length;
   const excludedCount = excluded.size;
+  const conflictIds = new Set(conflicts.map((c) => c.id));
+  const savableCount = all.filter(
+    (o) => !excluded.has(o.id) && !conflictIds.has(o.id)
+  ).length;
 
   const toggleExclude = (occId: string) =>
     setExcluded((prev) => {
@@ -40,10 +49,21 @@ export default function CyclePreview() {
     });
 
   const handleConfirm = () => {
-    const selected = all.filter((o) => !excluded.has(o.id));
-    if (selected.length > 0) {
-      addOccupancies(selected);
+    setError(null);
+    const safeToSave = all.filter(
+      (o) => !excluded.has(o.id) && !conflictIds.has(o.id)
+    );
+
+    if (safeToSave.length === 0) {
+      if (conflictCount === total) {
+        setError("全部为冲突项，请先排除冲突后再生成");
+      } else {
+        setError("没有可生成的排期，请先取消排除无冲突的记录");
+      }
+      return;
     }
+
+    addOccupancies(safeToSave);
     navigate(-1);
   };
 
@@ -64,10 +84,28 @@ export default function CyclePreview() {
     <>
       <PageHeader title="生成预览" showBack />
       <PageContainer className="pb-32">
-        <div className="mt-3 mb-2 flex gap-3 text-[11px] text-slate-400">
-          <span>共 {total} 项</span>
-          <span className="text-danger">冲突 {conflictCount}</span>
-          <span className="text-warning">排除 {excludedCount}</span>
+        <div className="mt-3 mb-2 flex flex-col gap-2">
+          <div className="flex gap-3 text-[11px] text-slate-400">
+            <span>共 {total} 项</span>
+            <span className="text-danger">冲突 {conflictCount}</span>
+            <span className="text-warning">排除 {excludedCount}</span>
+          </div>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-danger/15 border border-danger/30 rounded-lg px-3 py-2 text-[11px] text-danger flex items-center gap-2"
+            >
+              <AlertTriangle size={12} />
+              {error}
+            </motion.div>
+          )}
+          {conflictCount > 0 && (
+            <div className="bg-accent/10 border border-accent/20 rounded-lg px-3 py-2 text-[11px] text-accent/90 flex items-center gap-2">
+              <Info size={12} />
+              冲突项已默认排除，且不会被保存
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -80,24 +118,30 @@ export default function CyclePreview() {
                 initial={{ opacity: 0, x: -12 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.03 }}
-                onClick={() => toggleExclude(occ.id)}
+                onClick={() => !isConflict && toggleExclude(occ.id)}
                 className={cn(
                   "relative flex items-start gap-3 rounded-xl bg-surface p-3 transition-opacity",
-                  isConflict && "border border-danger/50",
-                  isExcluded && "opacity-40"
+                  isConflict && "border border-danger/50 opacity-60",
+                  !isConflict && isExcluded && "opacity-40",
+                  isConflict && "cursor-not-allowed",
+                  !isConflict && "cursor-pointer"
                 )}
               >
                 <div
                   className={cn(
                     "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border",
-                    isExcluded
-                      ? "border-slate-500"
-                      : "border-accent bg-accent"
+                    isConflict
+                      ? "border-danger/50 bg-danger/10"
+                      : isExcluded
+                        ? "border-slate-500"
+                        : "border-accent bg-accent"
                   )}
                 >
-                  {!isExcluded && (
+                  {isConflict ? (
+                    <AlertTriangle size={10} className="text-danger" />
+                  ) : !isExcluded ? (
                     <Check size={12} className="text-primary-dark" />
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -138,15 +182,15 @@ export default function CyclePreview() {
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-primary-dark/95 backdrop-blur-lg px-4 py-3 safe-bottom z-40">
         <button
           onClick={handleConfirm}
-          disabled={total - excludedCount === 0}
+          disabled={savableCount === 0}
           className={cn(
             "w-full rounded-xl py-3 text-sm font-semibold transition-colors",
-            total - excludedCount > 0
+            savableCount > 0
               ? "bg-accent text-primary-dark active:bg-accent-light"
               : "bg-surface-light text-slate-500 cursor-not-allowed"
           )}
         >
-          确认生成 ({total - excludedCount})
+          确认生成 ({savableCount})
         </button>
       </div>
     </>
